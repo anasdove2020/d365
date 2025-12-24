@@ -18,6 +18,7 @@ const QUOTE_SENT_STATUS_CODE = 2;
 const ORDER_RECEIVED_STATUS_CODE = 3;
 const DRAWING_IN_PROGRESS_STATUS_CODE = 4;
 const DRAWN_STATUS_CODE = 675430001;
+const NOT_WON_STATUS_CODE = 100000001;
 
 // TODO: as current release only for Plate and Steel, in future need to modify to cover teams from different business units.
 const SALES_TEAM_NAME = "Plate And Steel Sales Team"; 
@@ -294,6 +295,12 @@ window.statusCodeOnChange = function(executionContext) {
     var orderNumber = getFieldNameValue(formContext, FIELD_NAME_ORDER_NUMBER);
     var statusCode = getFieldNameValue(formContext, FIELD_NAME_STATUS_CODE);
 
+    if (isAllowToSetStatusNotWon(formContext)) {
+        saveData(formContext, () => moveDirectlyToEndOfLife(formContext));
+        currentStatusCode = statusCode;
+        return;
+    }
+
     if (isAllowToSetStatusDrawn(formContext, quoteNumber, purchaseOrderNumber, orderNumber)) {
         saveData(formContext, () => nextPhaseFromDrawToEndOfLife(formContext));
         currentStatusCode = statusCode;
@@ -414,6 +421,12 @@ function isAllowToSetStatusDrawingInProgress(formContext, quoteNumber, purchaseO
            isNotBlank(orderNumber);
 }
 
+// IS ALLOW TO SET STATUS NOT WON
+
+function isAllowToSetStatusNotWon(formContext) {
+    return isCurrentStatusNotWon(formContext);
+}
+
 // IS NOT BLANK
 
 function isNotBlank(value) {
@@ -487,6 +500,45 @@ function revertStatusCode(formContext) {
 
     statusCodeAttr.setValue(currentStatusCode);
     statusCodeAttr.setSubmitMode("always");
+}
+
+// SET DEFAULT QUOTE NUMBER WITH DEFAULT VALUE IF BLANK
+
+function setDefaultQuoteNumberWhenIsBlank(formContext) {
+    var quoteNumberAttr = getFieldNameAttr(formContext, FIELD_NAME_QUOTE_NUMBER);
+    if (!quoteNumberAttr) return;
+    
+    var quoteNumberValue = getFieldNameValue(formContext, FIELD_NAME_QUOTE_NUMBER);
+    if (!quoteNumberValue) {
+        quoteNumberAttr.setValue('-');
+        quoteNumberAttr.setSubmitMode("always");
+    }
+}
+
+// SET DEFAULT PURCHASE ORDER NUMBER WITH DEFAULT VALUE IF BLANK
+
+function setDefaultPurchaseOrderNumberWhenIsBlank(formContext) {
+    var purchaseOrderNumberAttr = getFieldNameAttr(formContext, FIELD_NAME_PURCHASE_ORDER_NUMBER);
+    if (!purchaseOrderNumberAttr) return;
+    
+    var purchaseOrderNumberValue = getFieldNameValue(formContext, FIELD_NAME_PURCHASE_ORDER_NUMBER);
+    if (!purchaseOrderNumberValue) {
+        purchaseOrderNumberAttr.setValue('-');
+        purchaseOrderNumberAttr.setSubmitMode("always");
+    }
+}
+
+// SET DEFAULT ORDER NUMBER WITH DEFAULT VALUE IF BLANK
+
+function setDefaultOrderNumberWhenIsBlank(formContext) {
+    var orderNumberAttr = getFieldNameAttr(formContext, FIELD_NAME_ORDER_NUMBER);
+    if (!orderNumberAttr) return;
+    
+    var orderNumberValue = getFieldNameValue(formContext, FIELD_NAME_ORDER_NUMBER);
+    if (!orderNumberValue) {
+        orderNumberAttr.setValue('-');
+        orderNumberAttr.setSubmitMode("always");
+    }
 }
 
 // SET FIELD NOTIFICATION
@@ -564,6 +616,13 @@ function isCurrentStatusDrawn(formContext) {
     return statusCodeValue === DRAWN_STATUS_CODE;
 }
 
+function isCurrentStatusNotWon(formContext) {
+    var statusCodeValue = getFieldNameValue(formContext, FIELD_NAME_STATUS_CODE);
+    if (!statusCodeValue) return;
+
+    return statusCodeValue === NOT_WON_STATUS_CODE;
+}
+
 // IS CURRENT INITIAL STATUS CODE
 
 function isCurrentInitialStatusNew(formContext) {
@@ -636,6 +695,14 @@ function setStatusCodeDrawingInProgress(formContext) {
 }
 
 function setStatusCodeDrawn(formContext) {
+    var statusCodeAttr = getFieldNameAttr(formContext, FIELD_NAME_STATUS_CODE);
+    if (!statusCodeAttr) return;
+
+    statusCodeAttr.setValue(DRAWN_STATUS_CODE);
+    statusCodeAttr.setSubmitMode("always");
+}
+
+function setStatusCodeNotWon(formContext) {
     var statusCodeAttr = getFieldNameAttr(formContext, FIELD_NAME_STATUS_CODE);
     if (!statusCodeAttr) return;
 
@@ -893,4 +960,53 @@ function previousPhaseFromDrawToOrder(formContext) {
 
 function previousPhaseFromEndOfLifeToDraw(formContext) {
     previousPhase(formContext, END_OF_LIFE_PHASE, DRAW_PHASE)
+}
+
+// MOVE DIRECTLY TO END OF LIFE
+
+function moveDirectlyToEndOfLife(formContext) {
+    setDefaultQuoteNumberWhenIsBlank(formContext);
+    setDefaultPurchaseOrderNumberWhenIsBlank(formContext);
+    setDefaultOrderNumberWhenIsBlank(formContext);
+    
+    if (isCurrentPhaseEnquiry(formContext)) {
+        // From Enquire to Quote
+        formContext.data.process.moveNext(res => {
+            if (res === "success") {
+                // From Quote to Order
+                formContext.data.process.moveNext(res => {
+                    if (res === "success") {
+                        // From Order to Draw
+                        formContext.data.process.moveNext(res => {
+                            if (res === "success") {
+                                // From Draw to End Of Life
+                                formContext.data.process.moveNext(res => {
+                                    if (res === "success") {
+                                        const message = `Successfully moved to End Of Life phase.`;
+                                        setInfoFormNotification(formContext, message);
+
+                                        setTimeout(() => {
+                                            clearInfoFormNotification(formContext);
+                                        }, 5000);
+                                    } else {
+                                        const message = `Failed to advance phase from Draw to End Of Life.`;
+                                        setErrorFormNotification(formContext, message);
+                                    }
+                                });
+                            } else {
+                                const message = `Failed to advance phase from Order to Draw.`;
+                                setErrorFormNotification(formContext, message);
+                            }
+                        });
+                    } else {
+                        const message = `Failed to advance phase from Quote to Order.`;
+                        setErrorFormNotification(formContext, message);
+                    }
+                });
+            } else {
+                const message = `Failed to advance phase from Enquiry to Quote.`;
+                setErrorFormNotification(formContext, message);
+            }
+        });
+    }
 }
