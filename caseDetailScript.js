@@ -296,6 +296,10 @@ window.statusCodeOnChange = function(executionContext) {
     var statusCode = getFieldNameValue(formContext, FIELD_NAME_STATUS_CODE);
 
     if (isAllowToSetStatusNotWon(formContext)) {
+        setDefaultQuoteNumberWhenIsBlank(formContext);
+        setDefaultPurchaseOrderNumberWhenIsBlank(formContext);
+        setDefaultOrderNumberWhenIsBlank(formContext);
+
         saveData(formContext, () => moveDirectlyToEndOfLife(formContext));
         currentStatusCode = statusCode;
         return;
@@ -965,10 +969,6 @@ function previousPhaseFromEndOfLifeToDraw(formContext) {
 // MOVE DIRECTLY TO END OF LIFE
 
 function moveDirectlyToEndOfLife(formContext) {
-    setDefaultQuoteNumberWhenIsBlank(formContext);
-    setDefaultPurchaseOrderNumberWhenIsBlank(formContext);
-    setDefaultOrderNumberWhenIsBlank(formContext);
-    
     if (isCurrentPhaseEnquiry(formContext)) {
         // From Enquire to Quote
         formContext.data.process.moveNext(res => {
