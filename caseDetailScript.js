@@ -6,6 +6,7 @@ const FIELD_NAME_ORDER_NUMBER = "new_ordernumber";
 const FIELD_NAME_STATUS_CODE = "statuscode";
 const FIELD_NAME_ASSIGN_TO = "ownerid";
 const FIELD_NAME_DUE_DATE = "new_duedate";
+const FIELD_NAME_TRANSITION_IN_PROGRESS = "new_transitioninprogress";
 
 const ENQUIRY_PHASE = "Enquiry"; 
 const QUOTE_PHASE = "Quote"; 
@@ -296,11 +297,17 @@ window.statusCodeOnChange = function(executionContext) {
     var statusCode = getFieldNameValue(formContext, FIELD_NAME_STATUS_CODE);
 
     if (isAllowToSetStatusNotWon(formContext)) {
+        setTransitionInProgres(formContext, true);
+
         setDefaultQuoteNumberWhenIsBlank(formContext);
         setDefaultPurchaseOrderNumberWhenIsBlank(formContext);
         setDefaultOrderNumberWhenIsBlank(formContext);
 
-        saveData(formContext, () => moveDirectlyToEndOfLife(formContext));
+        saveData(formContext, () => {
+            setTimeout(() => {
+                moveDirectlyToEndOfLife(formContext);
+            }, 300);
+        });
         currentStatusCode = statusCode;
         return;
     }
@@ -545,6 +552,16 @@ function setDefaultOrderNumberWhenIsBlank(formContext) {
     }
 }
 
+// SET TRANSITION IN PROGRESS
+
+function setTransitionInProgres(formContext, value) {
+    var transitionInProgressAttr = getFieldNameAttr(formContext, FIELD_NAME_TRANSITION_IN_PROGRESS);
+    if (!transitionInProgressAttr) return;
+
+    transitionInProgressAttr.setValue(value);
+    transitionInProgressAttr.setSubmitMode("always");
+}
+
 // SET FIELD NOTIFICATION
 
 function setFieldNotification(formContext, fieldName, message) {
@@ -699,14 +716,6 @@ function setStatusCodeDrawingInProgress(formContext) {
 }
 
 function setStatusCodeDrawn(formContext) {
-    var statusCodeAttr = getFieldNameAttr(formContext, FIELD_NAME_STATUS_CODE);
-    if (!statusCodeAttr) return;
-
-    statusCodeAttr.setValue(DRAWN_STATUS_CODE);
-    statusCodeAttr.setSubmitMode("always");
-}
-
-function setStatusCodeNotWon(formContext) {
     var statusCodeAttr = getFieldNameAttr(formContext, FIELD_NAME_STATUS_CODE);
     if (!statusCodeAttr) return;
 
@@ -970,112 +979,88 @@ function previousPhaseFromEndOfLifeToDraw(formContext) {
 
 function moveDirectlyToEndOfLife(formContext) {
     if (isCurrentPhaseEnquiry(formContext)) {
-        // From Enquire to Quote
-        formContext.data.process.moveNext(res => {
-            if (res === "success") {
-                // From Quote to Order
-                formContext.data.process.moveNext(res => {
-                    if (res === "success") {
-                        // From Order to Draw
-                        formContext.data.process.moveNext(res => {
-                            if (res === "success") {
-                                // From Draw to End Of Life
-                                formContext.data.process.moveNext(res => {
-                                    if (res === "success") {
-                                        const message = `Phase successfully advanced from Enquiry to End Of Life.`;
-                                        setInfoFormNotification(formContext, message);
-
-                                        setTimeout(() => {
-                                            clearInfoFormNotification(formContext);
-                                        }, 5000);
-                                    } else {
-                                        const message = `Failed to advance phase from Draw to End Of Life.`;
-                                        setErrorFormNotification(formContext, message);
-                                    }
-                                });
-                            } else {
-                                const message = `Failed to advance phase from Order to Draw.`;
-                                setErrorFormNotification(formContext, message);
-                            }
-                        });
-                    } else {
-                        const message = `Failed to advance phase from Quote to Order.`;
-                        setErrorFormNotification(formContext, message);
-                    }
-                });
-            } else {
-                const message = `Failed to advance phase from Enquiry to Quote.`;
-                setErrorFormNotification(formContext, message);
-            }
-        });
+        moveNextEnquiry(formContext);
     } else if (isCurrentPhaseQuote(formContext)) {
-        // From Quote to Order
-        formContext.data.process.moveNext(res => {
-            if (res === "success") {
-                // From Order to Draw
-                formContext.data.process.moveNext(res => {
-                    if (res === "success") {
-                        // From Draw to End Of Life
-                        formContext.data.process.moveNext(res => {
-                            if (res === "success") {
-                                const message = `Phase successfully advanced from Quote to End Of Life.`;
-                                setInfoFormNotification(formContext, message);
-
-                                setTimeout(() => {
-                                    clearInfoFormNotification(formContext);
-                                }, 5000);
-                            } else {
-                                const message = `Failed to advance phase from Draw to End Of Life.`;
-                                setErrorFormNotification(formContext, message);
-                            }
-                        });
-                    } else {
-                        const message = `Failed to advance phase from Order to Draw.`;
-                        setErrorFormNotification(formContext, message);
-                    }
-                });
-            } else {
-                const message = `Failed to advance phase from Quote to Order.`;
-                setErrorFormNotification(formContext, message);
-            }
-        });
+        moveNextQuote(formContext);
     } else if (isCurrentPhaseOrder(formContext)) {
-        // From Order to Draw
-        formContext.data.process.moveNext(res => {
-            if (res === "success") {
-                // From Draw to End Of Life
-                formContext.data.process.moveNext(res => {
-                    if (res === "success") {
-                        const message = `Phase successfully advanced from Order to End Of Life.`;
-                        setInfoFormNotification(formContext, message);
-
-                        setTimeout(() => {
-                            clearInfoFormNotification(formContext);
-                        }, 5000);
-                    } else {
-                        const message = `Failed to advance phase from Draw to End Of Life.`;
-                        setErrorFormNotification(formContext, message);
-                    }
-                });
-            } else {
-                const message = `Failed to advance phase from Order to Draw.`;
-                setErrorFormNotification(formContext, message);
-            }
-        });
+        moveNextOrder(formContext);
     } else if (isCurrentPhaseDraw(formContext)) {
-        // From Draw to End Of Life
+        moveNextDraw(formContext);
+    } else {
+        handleMoveError(formContext, "Unknown current phase.");
+    }
+}
+
+// MOVE NEXT FROM ENQUIRY
+
+function moveNextEnquiry(formContext) {
+    // From Enquiry to Quote
+    formContext.data.process.moveNext(res => {
+        if (res === "success") {
+            moveNextQuote(formContext);
+        } else {
+            handleMoveError(formContext, "Failed to advance phase from Enquiry to Quote.");
+        }
+    });
+}
+
+// MOVE NEXT FROM QUOTE
+
+function moveNextQuote(formContext) {
+    // From Quote to Order
+    formContext.data.process.moveNext(res => {
+        if (res === "success") {
+            moveNextOrder(formContext);
+        } else {
+            handleMoveError(formContext, "Failed to advance phase from Quote to Order.");
+        }
+    });
+}
+
+// MOVE NEXT FROM ORDER
+
+function moveNextOrder(formContext) {
+    // From Order to Draw
+    formContext.data.process.moveNext(res => {
+        if (res === "success") {
+            moveNextDraw(formContext);
+        } else {
+            handleMoveError(formContext, "Failed to advance phase from Order to Draw.");
+        }
+    });
+}
+
+// MOVE NEXT FROM DRAW
+
+function moveNextDraw(formContext) {
+    // From Draw to End Of Life
+    setTransitionInProgres(formContext, false);
+
+    formContext.data.save().then(() => {
         formContext.data.process.moveNext(res => {
             if (res === "success") {
-                const message = `Phase successfully advanced from Draw to End Of Life.`;
-                setInfoFormNotification(formContext, message);
+                setInfoFormNotification(
+                    formContext,
+                    "Phase successfully advanced to End Of Life."
+                );
 
                 setTimeout(() => {
                     clearInfoFormNotification(formContext);
                 }, 5000);
             } else {
-                const message = `Failed to advance phase from Draw to End Of Life.`;
-                setErrorFormNotification(formContext, message);
+                handleMoveError(formContext, "Failed to advance phase from Draw to End Of Life.");
             }
         });
-    }
+    });
+}
+
+// HANDLE MOVE ERROR
+
+function handleMoveError(formContext, message) {
+    setErrorFormNotification(formContext, message);
+
+    setTimeout(() => {
+        setTransitionInProgres(formContext, false);
+        saveDataEntity(formContext);
+    }, 300);
 }
