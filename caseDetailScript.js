@@ -982,7 +982,7 @@ function moveDirectlyToEndOfLife(formContext) {
                                 // From Draw to End Of Life
                                 formContext.data.process.moveNext(res => {
                                     if (res === "success") {
-                                        const message = `Successfully moved to End Of Life phase.`;
+                                        const message = `Phase successfully advanced from Enquiry to End Of Life.`;
                                         setInfoFormNotification(formContext, message);
 
                                         setTimeout(() => {
@@ -1005,6 +1005,75 @@ function moveDirectlyToEndOfLife(formContext) {
                 });
             } else {
                 const message = `Failed to advance phase from Enquiry to Quote.`;
+                setErrorFormNotification(formContext, message);
+            }
+        });
+    } else if (isCurrentPhaseQuote(formContext)) {
+        // From Quote to Order
+        formContext.data.process.moveNext(res => {
+            if (res === "success") {
+                // From Order to Draw
+                formContext.data.process.moveNext(res => {
+                    if (res === "success") {
+                        // From Draw to End Of Life
+                        formContext.data.process.moveNext(res => {
+                            if (res === "success") {
+                                const message = `Phase successfully advanced from Quote to End Of Life.`;
+                                setInfoFormNotification(formContext, message);
+
+                                setTimeout(() => {
+                                    clearInfoFormNotification(formContext);
+                                }, 5000);
+                            } else {
+                                const message = `Failed to advance phase from Draw to End Of Life.`;
+                                setErrorFormNotification(formContext, message);
+                            }
+                        });
+                    } else {
+                        const message = `Failed to advance phase from Order to Draw.`;
+                        setErrorFormNotification(formContext, message);
+                    }
+                });
+            } else {
+                const message = `Failed to advance phase from Quote to Order.`;
+                setErrorFormNotification(formContext, message);
+            }
+        });
+    } else if (isCurrentPhaseOrder(formContext)) {
+        // From Order to Draw
+        formContext.data.process.moveNext(res => {
+            if (res === "success") {
+                // From Draw to End Of Life
+                formContext.data.process.moveNext(res => {
+                    if (res === "success") {
+                        const message = `Phase successfully advanced from Order to End Of Life.`;
+                        setInfoFormNotification(formContext, message);
+
+                        setTimeout(() => {
+                            clearInfoFormNotification(formContext);
+                        }, 5000);
+                    } else {
+                        const message = `Failed to advance phase from Draw to End Of Life.`;
+                        setErrorFormNotification(formContext, message);
+                    }
+                });
+            } else {
+                const message = `Failed to advance phase from Order to Draw.`;
+                setErrorFormNotification(formContext, message);
+            }
+        });
+    } else if (isCurrentPhaseDraw(formContext)) {
+        // From Draw to End Of Life
+        formContext.data.process.moveNext(res => {
+            if (res === "success") {
+                const message = `Phase successfully advanced from Draw to End Of Life.`;
+                setInfoFormNotification(formContext, message);
+
+                setTimeout(() => {
+                    clearInfoFormNotification(formContext);
+                }, 5000);
+            } else {
+                const message = `Failed to advance phase from Draw to End Of Life.`;
                 setErrorFormNotification(formContext, message);
             }
         });
